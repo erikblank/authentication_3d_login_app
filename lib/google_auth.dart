@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'package:authentication_3d_login_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 
 class GoogleAuth extends StatefulWidget {
@@ -12,53 +12,29 @@ class GoogleAuth extends StatefulWidget {
 }
 
 class _GoogleAuth extends State<GoogleAuth> with TickerProviderStateMixin {
-  int _number = 654321;
+  late Future<Map<String, dynamic>> _googleAuth;
   late Timer timer;
-  late AnimationController controller;
-  int _duration = 10;
+  int ticInSec = 1;
 
   @override
   void initState() {
-    _number = getRandomNum();
-    setTimer();
-    setProgress();
     super.initState();
+    _googleAuth = AuthService.getGoogleCode();
+    setTimer();
+  }
+
+  void setTimer() {
+    timer = Timer.periodic(Duration(seconds: ticInSec), (timer) async {
+      setState(() {
+        _googleAuth = AuthService.getGoogleCode();
+      });
+    });
   }
 
   @override
   void dispose() {
-    controller.dispose();
     timer.cancel();
     super.dispose();
-  }
-
-  void setTimer() {
-    timer = Timer.periodic(Duration(seconds: _duration), (timer) async {
-      setState(() {
-        _number = getRandomNum();
-      });
-      controller.dispose();
-      setProgress();
-    });
-  }
-
-  void setProgress() {
-    controller = AnimationController(
-      vsync: this,
-      duration: Duration(seconds: _duration),
-    )..addListener(() {
-        setState(() {});
-      });
-    controller.repeat();
-  }
-
-  int getRandomNum() {
-    var rnd = new Random();
-    var next = rnd.nextDouble() * 1000000;
-    while (next < 100000) {
-      next *= 10;
-    }
-    return next.toInt();
   }
 
   @override
@@ -74,27 +50,39 @@ class _GoogleAuth extends State<GoogleAuth> with TickerProviderStateMixin {
             Text(
               'Your authentication code:',
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '$_number',
-                    style: Theme.of(context).textTheme.headline4,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        value: controller.value,
-                      ),
+            FutureBuilder<Map<String, dynamic>>(
+              future: _googleAuth,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${snapshot.data!["code"]}',
+                          style: Theme.of(context).textTheme.headline4,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              value: snapshot.data!["time"] / 30000,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
+                  );
+                } else if (snapshot.hasError) {
+                  return Text("${snapshot.error}");
+                }
+
+                // By default, show a loading spinner.
+                return CircularProgressIndicator();
+              },
             ),
           ],
         ),

@@ -1,7 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:authentication_3d_login_app/google_auth.dart';
-import 'package:authentication_3d_login_app/TakePictureScreen.dart';
+import 'package:authentication_3d_login_app/auth_3d.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,7 +64,7 @@ class LoginOptions extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => TakePictureScreen(camera: camera)),
+                      builder: (context) => Auth3d(camera: camera)),
                 );
               },
               child: Padding(

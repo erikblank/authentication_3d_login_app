@@ -1,104 +1,179 @@
+// A screen that allows users to take a picture using a given camera.
 import 'dart:async';
-import 'dart:math';
+import 'dart:io';
+
+import 'package:authentication_3d_login_app/services/auth_service.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-class Auth3D extends StatefulWidget {
-  Auth3D({
+class Auth3d extends StatefulWidget {
+  final CameraDescription camera;
+
+  const Auth3d({
     Key? key,
+    required this.camera,
   }) : super(key: key);
 
   @override
-  _Auth3D createState() => _Auth3D();
+  Auth3dState createState() => Auth3dState();
 }
 
-class _Auth3D extends State<Auth3D> with TickerProviderStateMixin {
-  int _number = 654321;
-  late Timer timer;
-  late AnimationController controller;
-  int _duration = 10;
+class Auth3dState extends State<Auth3d> {
+  late CameraController _controller;
+  late Future<void> _initializeControllerFuture;
+  List<Widget> imageList = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
-    _number = getRandomNum();
-    setTimer();
-    setProgress();
     super.initState();
+    // To display the current output from the Camera,
+    // create a CameraController.
+    _controller = CameraController(
+      // Get a specific camera from the list of available cameras.
+      widget.camera,
+      // Define the resolution to use.
+      ResolutionPreset.medium,
+    );
+    // Next, initialize the controller. This returns a Future.
+    _initializeControllerFuture = _controller.initialize();
+
+    // Next, initialize the controller. This returns a Future.
   }
 
   @override
   void dispose() {
-    controller.dispose();
-    timer.cancel();
+    // Dispose of the controller when the widget is disposed.
+    _controller.dispose();
     super.dispose();
   }
 
-  void setTimer() {
-    timer = Timer.periodic(Duration(seconds: _duration), (timer) async {
-      setState(() {
-        _number = getRandomNum();
-      });
-      controller.dispose();
-      setProgress();
+  void authenticate() async {
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: AlertDialog(
+              content: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                ],
+              ),
+            ),
+          );
+        });
+
+    await AuthService.authenticateWithCube({"status": true});
+    new Timer(const Duration(seconds: 1), () {
+      Navigator.pop(context);
+      Navigator.pop(context);
     });
-  }
 
-  void setProgress() {
-    controller = AnimationController(
-      vsync: this,
-      duration: Duration(seconds: _duration),
-    )..addListener(() {
-        setState(() {});
-      });
-    controller.repeat();
-  }
-
-  int getRandomNum() {
-    var rnd = new Random();
-    var next = rnd.nextDouble() * 1000000;
-    while (next < 100000) {
-      next *= 10;
-    }
-    return next.toInt();
+    print("authentication done");
   }
 
   @override
   Widget build(BuildContext context) {
+    // Fill this out in the next steps.
     return Scaffold(
-      appBar: AppBar(
-        title: Text("3D Authentication"),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'Your authentication code:',
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '$_number',
-                    style: Theme.of(context).textTheme.headline4,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        value: controller.value,
+      appBar: AppBar(title: const Text('3D Authentication')),
+      // You must wait until the controller is initialized before displaying the
+      // camera preview. Use a FutureBuilder to display a loading spinner until the
+      // controller has finished initializing.
+      body: FutureBuilder<void>(
+        future: _initializeControllerFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            // If the Future is complete, display the preview.
+            return _isLoading
+                ? Center(child: CircularProgressIndicator())
+                : Column(
+                    children: [
+                      CameraPreview(_controller),
+                      SizedBox(
+                        height: 70,
+                        child: Row(
+                          children: imageList,
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                    ],
+                  );
+          } else {
+            // Otherwise, display a loading indicator.
+            return const Center(child: CircularProgressIndicator());
+          }
+        },
       ),
+      floatingActionButton: FloatingActionButton(
+        // Provide an onPressed callback.
+        onPressed: () async {
+          // Take the Picture in a try / catch block. If anything goes wrong,
+          // catch the error.
+          try {
+            if (imageList.length < 3) {
+              setState(() {
+                _isLoading = true;
+              });
+              // Ensure that the camera is initialized.
+              await _initializeControllerFuture;
+
+              // Attempt to take a picture and get the file `image`
+              // where it was saved.
+              final image = await _controller.takePicture();
+
+              setState(() {
+                imageList.add(Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+                    child: Image.file(
+                      File(image.path),
+                      fit: BoxFit.fitWidth,
+                      width: 60,
+                      height: 60,
+                    )));
+                _isLoading = false;
+              });
+            } else {
+              // If the picture was taken, display it on a new screen.
+              // await Navigator.of(context).push(
+              //   MaterialPageRoute(
+              //     builder: (context) => DisplayPictureScreen(
+              //       // Pass the automatically generated path to
+              //       // the DisplayPictureScreen widget.
+              //       imagePath: image.path,
+              //     ),
+              //   ),
+              // );
+              authenticate();
+            }
+          } catch (e) {
+            // If an error occurs, log the error to the console.
+            print(e);
+          }
+        },
+        child:
+            imageList.length < 3 ? Icon(Icons.camera_alt) : Icon(Icons.check),
+      ),
+    );
+  }
+}
+
+class DisplayPictureScreen extends StatelessWidget {
+  final String imagePath;
+
+  const DisplayPictureScreen({Key? key, required this.imagePath})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Display the Picture')),
+      // The image is stored as a file on the device. Use the `Image.file`
+      // constructor with the given path to display the image.
+      body: Image.file(File(imagePath)),
     );
   }
 }
